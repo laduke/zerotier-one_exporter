@@ -2,10 +2,12 @@ package main
 
 import (
 	// "fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 
 	one "github.com/erikh/go-ztone"
+	"github.com/laduke/zerotier-one_exporter/authtoken"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -13,7 +15,16 @@ import (
 func main() {
 	reg := prometheus.NewPedanticRegistry()
 
-	c := one.NewClient(os.Getenv("ZEROTIER_ONE_TOKEN"))
+	token := os.Getenv("ZEROTIER_ONE_TOKEN")
+	if token == "" {
+		b, err := ioutil.ReadFile(authtoken.TokenPath())
+		if err != nil { panic(err) }
+
+		token = string(b)
+	}
+
+	c := one.NewClient(token)
+
 	d := MyClient{ client: *c }
 
 
@@ -109,11 +120,11 @@ var peerConn = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Help: "count of peers by connection",
 }, []string{"connection"})
 
-var peerFancy = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+var peerLatency = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Namespace: namespace,
-	Name: "peer_detailed",
+	Name: "peer_latency",
 	Help: "count of peers by connection",
-}, []string{"address", "role", "conn", "version"})
+}, []string{"address", "role", "version"})
 
 var statusGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Namespace: namespace,
@@ -130,13 +141,14 @@ var networkStatus = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	peers, _ := e.client.GetPeers()
 
-	planets, leafs, moons := CountPeerRoles(&peers)
 	direct := CountPeerConnections(&peers)
 
 	status, _ := e.client.GetStatus()
 
 	networks, _ := e.client.GetNetworks()
 	networkCounts := CountNetworks(&networks)
+
+	planets, leafs, moons := CountPeerRoles(&peers)
 
 	ch <- prometheus.MustNewConstMetric(statusGauge.WithLabelValues("version", "address").Desc(), prometheus.GaugeValue, status.OnlineFloat(), status.Version, status.Address)
 
@@ -153,14 +165,14 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 	// TODO make enabling configurable maybe
 	for _, v := range peers {
-		ch <- prometheus.MustNewConstMetric(peerFancy.WithLabelValues("address", "role", "conn", "version").Desc(), prometheus.GaugeValue, float64(v.Latency), v.Address, v.Role, v.Conn(), v.Version)
+		ch <- prometheus.MustNewConstMetric(peerLatency.WithLabelValues("address", "role", "version").Desc(), prometheus.GaugeValue, float64(v.Latency), v.Address, v.Role, v.Version)
 	}
 }
 
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- peerRoles.WithLabelValues("role").Desc()
 	ch <- peerConn.WithLabelValues("connection").Desc()
-	ch <- peerFancy.WithLabelValues("address", "role", "conn", "version").Desc()
+	ch <- peerLatency.WithLabelValues("address", "role", "version").Desc()
 
 	ch <- statusGauge.WithLabelValues("version", "address").Desc()
 
@@ -237,11 +249,9 @@ func CountPeerRoles(peers *[]MetricPeer) (float64, float64, float64) {
 	for _, v := range *peers {
 		if v.IsLeaf()  {
 			leafs = leafs + 1
-		}
-		if v.IsRoot() {
+		} else if v.IsRoot() {
 			planets = planets + 1
-		}
-		if v.IsMoon() {
+		} else if v.IsMoon() {
 			moons = moons + 1
 		}
 	}
@@ -283,6 +293,17 @@ func (p MetricPeer) IsDirect() bool {
 	}
 	return direct
 	// return len(p.Paths) > 0
+}
+
+func (p MetricPeer) IsController(networks *[]MetricNetwork) bool {
+	res := false
+	for _, v := range *networks {
+		if (v.ID[0:10] == p.Address) {
+			res = true
+			break
+		}
+	}
+	return res
 }
 
 func (p MetricPeer) IsLeaf() bool {
