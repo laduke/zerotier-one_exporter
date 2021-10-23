@@ -134,9 +134,34 @@ var statusGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 
 var networkStatus = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 	Namespace: namespace,
-	Name: "network",
-	Help: "network",
+	Name: "network_status",
+	Help: "by label",
 }, []string{"status"})
+
+var networkStatus2 = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: namespace,
+	Name: "network_status2",
+	Help: "by network id",
+}, []string{"network_id"})
+
+var networkConfRevision = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: namespace,
+	Name: "network_conf_revision",
+	Help: "network",
+}, []string{"network_id"})
+
+func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
+	ch <- peerRoles.WithLabelValues("role").Desc()
+	ch <- peerConn.WithLabelValues("connection").Desc()
+	ch <- peerLatency.WithLabelValues("address", "role", "version").Desc()
+
+	ch <- statusGauge.WithLabelValues("version", "address").Desc()
+
+	ch <- networkStatus.WithLabelValues("status").Desc()
+
+	ch <- networkStatus2.WithLabelValues("network_id").Desc()
+	ch <- networkConfRevision.WithLabelValues("network_id").Desc()
+}
 
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	peers, _ := e.client.GetPeers()
@@ -146,7 +171,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	status, _ := e.client.GetStatus()
 
 	networks, _ := e.client.GetNetworks()
-	networkCounts := CountNetworks(&networks)
+	networkCounts := CountNetworkStatuses(&networks)
 
 	planets, leafs, moons := CountPeerRoles(&peers)
 
@@ -163,21 +188,20 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(networkStatus.WithLabelValues("status").Desc(),prometheus.GaugeValue, v, k)
 	}
 
+	for _, v := range(networks) {
+		ch <- prometheus.MustNewConstMetric(networkStatus2.WithLabelValues("network_id").Desc(),prometheus.GaugeValue, v.StatusToFloat(), v.ID)
+	}
+
+	for _, v := range(networks) {
+		ch <- prometheus.MustNewConstMetric(networkConfRevision.WithLabelValues("network_id").Desc(),prometheus.GaugeValue, v.NetconfRevision, v.ID)
+	}
+
 	// TODO make enabling configurable maybe
 	for _, v := range peers {
 		ch <- prometheus.MustNewConstMetric(peerLatency.WithLabelValues("address", "role", "version").Desc(), prometheus.GaugeValue, float64(v.Latency), v.Address, v.Role, v.Version)
 	}
 }
 
-func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
-	ch <- peerRoles.WithLabelValues("role").Desc()
-	ch <- peerConn.WithLabelValues("connection").Desc()
-	ch <- peerLatency.WithLabelValues("address", "role", "version").Desc()
-
-	ch <- statusGauge.WithLabelValues("version", "address").Desc()
-
-	ch <- networkStatus.WithLabelValues("status").Desc()
-}
 
 type MetricPeer struct {
 	Address string
@@ -204,6 +228,7 @@ type MetricStatus struct {
 type MetricNetwork struct {
 	ID string
 	Status string
+	NetconfRevision float64
 }
 
 func StatusToMetricStatus (old *one.NetworkStatus) MetricStatus {
@@ -230,6 +255,8 @@ func NetworkToMetricNetwork (old *one.Network) MetricNetwork {
 	var network2 MetricNetwork
 	network2.ID = old.ID
 	network2.Status = old.Status
+	network2.NetconfRevision = float64(old.NetconfRevision)
+
 	return network2
 }
 
@@ -271,7 +298,7 @@ func CountPeerConnections(peers *[]MetricPeer) (float64) {
 	return float64(direct)
 }
 
-func CountNetworks(networks *[]MetricNetwork) (map[string]float64) {
+func CountNetworkStatuses(networks *[]MetricNetwork) (map[string]float64) {
 	counts := make(map[string]float64)
 
 	for _, v := range *networks {
@@ -329,3 +356,37 @@ func (n MetricStatus) OnlineFloat() float64 {
 		return 1
 	} else { return 0 }
 }
+
+func (n MetricNetwork) StatusToFloat () float64 {
+	if n.Status == "OK" {
+		return ZT_NETWORK_STATUS_OK
+	} else if n.Status == "REQUESTING_CONFIGURATION" {
+		return ZT_NETWORK_STATUS_REQUESTING_CONFIGURATION
+	} else if n.Status == "ACCESS_DENIED" {
+		return ZT_NETWORK_STATUS_ACCESS_DENIED
+	} else if n.Status == "NOT_FOUND" {
+		return ZT_NETWORK_STATUS_NOT_FOUND
+	} else if n.Status == "PORT_ERROR" {
+		return ZT_NETWORK_STATUS_PORT_ERROR
+	} else if n.Status == "CLIENT_TOO_OLD" {
+		return ZT_NETWORK_STATUS_CLIENT_TOO_OLD
+	} else if n.Status == "AUTHENTICATION_REQUIRED" {
+		return ZT_NETWORK_STATUS_AUTHENTICATION_REQUIRED
+	}
+	return -1
+}
+
+const (
+	ZT_NETWORK_STATUS_REQUESTING_CONFIGURATION = 0
+	ZT_NETWORK_STATUS_OK = 1
+	ZT_NETWORK_STATUS_ACCESS_DENIED = 2
+	ZT_NETWORK_STATUS_NOT_FOUND = 3
+	ZT_NETWORK_STATUS_PORT_ERROR = 4
+	ZT_NETWORK_STATUS_CLIENT_TOO_OLD = 5
+	ZT_NETWORK_STATUS_AUTHENTICATION_REQUIRED = 6
+
+	ZT_PEER_ROLE_LEAF = 0
+	ZT_PEER_ROLE_MOON = 1
+	ZT_PEER_ROLE_PLANET = 2
+
+)
