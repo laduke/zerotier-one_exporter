@@ -198,7 +198,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 	// TODO make enabling configurable maybe
 	for _, v := range peers {
-		ch <- prometheus.MustNewConstMetric(peerLatency.WithLabelValues("address", "role", "version").Desc(), prometheus.GaugeValue, float64(v.Latency), v.Address, v.Role, v.Version)
+		ch <- prometheus.MustNewConstMetric(peerLatency.WithLabelValues("address", "role", "version").Desc(), prometheus.GaugeValue, v.Latency, v.Address, v.Role, v.Version)
 	}
 }
 
@@ -243,7 +243,12 @@ func StatusToMetricStatus (old *one.NetworkStatus) MetricStatus {
 
 func PeerToMetricPeer (peer *one.Peer) MetricPeer {
 	var peer2 MetricPeer
-	peer2.Latency = float64(peer.Latency)
+
+	if peer.Latency == -1 {
+		peer2.Latency = -1
+	} else {
+		peer2.Latency = float64(peer.Latency) / 1000
+	}
 	peer2.Address = peer.Address
 	peer2.Role = peer.Role
 	peer2.Version = peer.Version
