@@ -5,7 +5,7 @@ import (
 )
 
 
-func TokenPath () string {
+func tokenPath () string {
 	home, _ := os.UserHomeDir()
 
 	return home + "/Library/Application Support/ZeroTier/One/authtoken.secret"
