@@ -21,8 +21,6 @@ import (
 	"github.com/laduke/zerotier-one_exporter/internal/ztoneservice"
 )
 
-// TODO make a config service, make a flag to collect zerotier addresses or not
-
 func main() {
 	var (
 		webConfig     = webflag.AddFlags(kingpin.CommandLine)
