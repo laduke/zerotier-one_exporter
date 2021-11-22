@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io/ioutil"
 	"net/http"
 	"os"
 
@@ -20,14 +21,16 @@ import (
 	"github.com/laduke/zerotier-one_exporter/internal/ztoneservice"
 )
 
-// TODO make a config service, configure authtoken and flag to collect addresses or not
+// TODO make a config service, make a flag to collect zerotier addresses or not
 
 func main() {
 	var (
 		webConfig     = webflag.AddFlags(kingpin.CommandLine)
 		listenAddress = kingpin.Flag("web.listen-address", "Address to listen on for web interface and telemetry.").Default(":19993").String()
 		metricsPath   = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
+		authtokenPath   = kingpin.Flag("zerotier.authtoken-path", "Path to the zerotier one authtoken.secret.").String()
 	)
+
 
 	promlogConfig := &promlog.Config{}
 	flag.AddFlags(kingpin.CommandLine, promlogConfig)
@@ -36,7 +39,15 @@ func main() {
 	kingpin.Parse()
 	logger := promlog.New(promlogConfig)
 
-	token := authtoken.Guess()
+	var token string
+	if *authtokenPath != "" {
+		b, err := ioutil.ReadFile(*authtokenPath)
+		if err != nil { panic(err) }
+		token = string(b)
+
+	} else {
+		token = authtoken.Guess()
+	}
 	oneService := ztone.New(token)
 
 	reg := prometheus.NewPedanticRegistry()
@@ -61,7 +72,6 @@ func main() {
 
 	srv := &http.Server{Addr: *listenAddress}
 
-	http.ListenAndServe(":1971", nil)
 	if err := web.ListenAndServe(srv, *webConfig, logger); err != nil {
 		level.Error(logger).Log("msg", "Error starting HTTP server", "err", err)
 		os.Exit(1)
