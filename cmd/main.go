@@ -52,26 +52,31 @@ func main() {
 	exporter := promexporter.New(oneService)
 	reg.MustRegister(exporter)
 
-	level.Info(logger).Log("msg", "Starting zerotier-one_exporter", "version", version.Info())
-	level.Info(logger).Log("msg", "Build context", "context", version.BuildContext())
+	level.Info(logger).Log("msg", "Starting zerotier-one_exporter", "version", version.Info()) //nolint
+	level.Info(logger).Log("msg", "Build context", "context", version.BuildContext()) //nolint
 
 
-	level.Info(logger).Log("msg", "Listening on address", "address", *listenAddress)
+	level.Info(logger).Log("msg", "Listening on address", "address", *listenAddress) //nolint
+
 	http.Handle(*metricsPath, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`<html>
+		_, err := w.Write([]byte(`<html>
              <head><title>ZeroTier Exporter</title></head>
              <body>
              <h1>ZeroTier Exporter</h1>
              <p><a href='` + *metricsPath + `'>Metrics</a></p>
              </body>
              </html>`))
+
+		if err != nil {
+			level.Error(logger).Log("msg", "Error handling HTTP /", "err", err) //nolint
+		}
 	})
 
 	srv := &http.Server{Addr: *listenAddress}
 
 	if err := web.ListenAndServe(srv, *webConfig, logger); err != nil {
-		level.Error(logger).Log("msg", "Error starting HTTP server", "err", err)
+		level.Error(logger).Log("msg", "Error starting HTTP server", "err", err) //nolint
 		os.Exit(1)
 	}
 }

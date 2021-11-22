@@ -38,7 +38,7 @@ func (repo *ztone) Get() (domain.Metrics, error) {
 func IsDirect(p one.Peer) bool {
 	direct := false
 	for _, v := range p.Paths {
-		if v.Preferred == true {
+		if v.Preferred {
 			direct = true
 			break
 		}
