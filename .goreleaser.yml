@@ -13,7 +13,6 @@ builds:
       - linux
       # - windows ## TODO test tokenpath on windows
       - darwin
-    main: ./cmd/main.go
 archives:
   - replacements:
       darwin: Darwin
