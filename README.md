@@ -8,9 +8,11 @@ Just trying some stuff out for now. Mostly VL1 related.
 <img width="915" alt="graph of direct vs relayed peers" src="https://user-images.githubusercontent.com/11598/146835858-5291c360-2485-4bc1-8f9a-be6bccdb74d3.png">
 
 ## TODO
-- [] integrationy tests
-- [] package it up, so I can install it more easily on my devices
-- [] configurable if it logs individual node addresses or not
+- [ ] make labels for PLANET, LEAF, MOON
+- [ ] integrationy tests
+- [ ] package it up, so I can install it more easily on my devices
+  - [x] rudimentary linux and macos services in examples dir
+- [ ] configurable if it logs individual node addresses or not, just planets for example.
 
 ## run
 ```
