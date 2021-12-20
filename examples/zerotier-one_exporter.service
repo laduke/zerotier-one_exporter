@@ -1,0 +1,14 @@
+[Unit]
+Description=ZeroTier prometheus exporter
+Requires=zerotier-one.service
+After=zerotier-one.service
+Documentation=https://github.com/laduke/zerotier-one_exporter
+
+[Service]
+Restart=on-failure
+EnvironmentFile=/etc/default/zerotier-one_exporter
+ExecStart=/usr/bin/zerotier-one_exporter $ARGS
+TimeoutStopSec=20s
+
+[Install]
+WantedBy=multi-user.target

@@ -12,6 +12,7 @@ go run cmd/main.go
 ```
 
 ### args so far
-- `--web.listen-address`
-- `--web.telemetry-path`
-- `--zerotier.authtoken-path`
+- `--web.listen-address` default: ::19993
+- `--web.telemetry-path` default: /metrics
+- `--zerotier.authtoken-path` default: /var/lib/zerotier-one (linux), $HOME/Library/Application Support/ZeroTier/One/authtoken.secret (mac), TODO (windows)
+
